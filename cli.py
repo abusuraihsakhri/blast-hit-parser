@@ -9,6 +9,7 @@ classification, 6-frame translation, and Newick phylogenetic export.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
 from pathlib import Path
@@ -236,6 +237,94 @@ def cmd_translate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_batch(args: argparse.Namespace) -> int:
+    inp_path = Path(args.input)
+    if not inp_path.exists():
+        print(f"Error: Input file '{args.input}' not found", file=sys.stderr)
+        return 1
+
+    content = inp_path.read_text(encoding="utf-8-sig")
+    lines = [line.strip() for line in content.splitlines() if line.strip()]
+    if not lines:
+        print("Warning: Input file is empty", file=sys.stderr)
+        return 0
+
+    first_line = lines[0].lower()
+    # Check if this is a standard NCBI BLAST tabular outfmt 6 / 7 CSV or TSV
+    is_tabular = (
+        first_line.startswith("#")
+        or "qseqid" in first_line
+        or "query_id" in first_line
+        or ("," in first_line and len(first_line.split(",")) >= 12)
+        or ("\t" in first_line and len(first_line.split("\t")) >= 12)
+    )
+
+    criteria = FilterCriteria(
+        max_evalue=args.max_evalue,
+        min_bit_score=args.min_bit_score,
+        min_identity=args.min_identity,
+        min_query_coverage=args.min_coverage,
+    )
+
+    out_rows: List[Dict[str, Any]] = []
+
+    if is_tabular:
+        hits = BlastTabularParser.parse_text(content)
+        filt_res = HitFilter.filter_hits(hits, criteria)
+        retained = filt_res["retained_hits"]
+
+        for h in retained:
+            best = h.best_hsp
+            out_rows.append({
+                "query_id": h.query_id,
+                "subject_id": h.subject_id,
+                "subject_title": h.subject_title,
+                "num_hsps": len(h.hsps),
+                "identity": round(best.identity, 2) if best else 0.0,
+                "alignment_length": best.alignment_length if best else 0,
+                "evalue": f"{best.evalue:.2e}" if best else "N/A",
+                "bit_score": round(best.bit_score, 1) if best else 0.0,
+                "total_bit_score": round(h.total_bit_score, 1),
+                "query_coverage": round(h.query_coverage * 100.0, 2),
+            })
+    else:
+        # Fallback generic key-value CSV reader
+        reader = csv.DictReader(lines)
+        fn = reader.fieldnames or []
+        qcol = fn[0] if fn else "query"
+        for cand in ["query", "test", "drug", "code", "variant", "hla", "lab", "name"]:
+            for c in fn:
+                if c.lower() == cand:
+                    qcol = c
+                    break
+        for row in reader:
+            val = row.get(qcol, "")
+            out_rows.append({
+                **row,
+                "parsed_query": val,
+                "status": "processed",
+            })
+
+    if args.output:
+        out_path = Path(args.output)
+        if out_rows:
+            fnames = list(out_rows[0].keys())
+            with out_path.open("w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fnames)
+                writer.writeheader()
+                writer.writerows(out_rows)
+        else:
+            out_path.write_text("", encoding="utf-8")
+        print(f"Processed {len(out_rows)} records -> {args.output}")
+    else:
+        if args.json:
+            print(json.dumps(out_rows, indent=2))
+        else:
+            print(f"Processed {len(out_rows)} records successfully.")
+
+    return 0
+
+
 def cmd_interactive() -> int:
     print("BLAST Hit Parser Interactive CLI")
     print("Commands: tabular, xml, filter, lca, translate, help, exit\n")
@@ -272,6 +361,16 @@ def build_parser() -> argparse.ArgumentParser:
         description="BLAST Hit Parsing, Filtering & LCA Taxonomic Assignment Platform",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Subcommand: batch
+    p_batch = subparsers.add_parser("batch", help="Batch process BLAST tabular hits CSV/TSV with filtering")
+    p_batch.add_argument("--input", "-i", type=str, required=True, help="Input CSV or TSV tabular file")
+    p_batch.add_argument("--output", "-o", type=str, required=True, help="Output CSV results file")
+    p_batch.add_argument("--max-evalue", type=float, default=1e-5, help="Maximum E-value threshold")
+    p_batch.add_argument("--min-bit-score", type=float, default=50.0, help="Minimum bit score threshold")
+    p_batch.add_argument("--min-identity", type=float, default=70.0, help="Minimum % identity threshold")
+    p_batch.add_argument("--min-coverage", type=float, default=0.50, help="Minimum query coverage fraction")
+    p_batch.add_argument("--json", action="store_true", help="Output JSON in stdout")
 
     # Subcommand: parse-tabular
     p_tab = subparsers.add_parser("parse-tabular", help="Parse BLAST outfmt 6 / m8 tabular output")
@@ -319,7 +418,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.command == "parse-tabular":
+    if args.command == "batch":
+        return cmd_batch(args)
+    elif args.command == "parse-tabular":
         return cmd_parse_tabular(args)
     elif args.command == "parse-xml":
         return cmd_parse_xml(args)

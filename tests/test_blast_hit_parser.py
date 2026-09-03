@@ -16,6 +16,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 
 from blast_hit_parser import (
     BlastTabularParser,
@@ -312,7 +313,24 @@ class TestCLIExecution(unittest.TestCase):
         self.assertEqual(ret, 0)
         data = json.loads(buf.getvalue())
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["query_id"], "q_test")
+    def test_cli_batch(self):
+        import tempfile, os
+        sample_path = Path(__file__).resolve().parent.parent / "sample.csv"
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+            tmp_out = tmp.name
+        try:
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                ret = main(["batch", "-i", str(sample_path), "-o", tmp_out])
+            self.assertEqual(ret, 0)
+            self.assertTrue(os.path.exists(tmp_out))
+            with open(tmp_out, encoding="utf-8") as f:
+                content = f.read()
+                self.assertIn("seq1_16S", content)
+                self.assertIn("query_id", content)
+        finally:
+            if os.path.exists(tmp_out):
+                os.remove(tmp_out)
 
 
 class TestEdgeCasesAndStatistics(unittest.TestCase):

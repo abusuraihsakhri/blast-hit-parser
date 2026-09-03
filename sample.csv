@@ -1,4 +1,11 @@
-query,name
-Q1,creatinine
-Q2,hemoglobin
-Q3,platelets
+qseqid,sseqid,pident,length,mismatch,gapopen,qstart,qend,sstart,send,evalue,bitscore
+seq1_16S,NR_024570.1_Escherichia_coli,99.50,1500,7,1,1,1500,1,1500,0.0,2750.0
+seq1_16S,NR_042817.1_Shigella_flexneri,99.20,1500,12,0,1,1500,1,1500,0.0,2720.0
+seq1_16S,NR_074910.1_Salmonella_enterica,94.80,1480,75,2,10,1485,5,1480,1.00e-150,1850.0
+seq2_rpoB,NC_000962.3_Mycobacterium_tuberculosis,98.60,950,13,0,1,950,120,1070,0.0,1720.0
+seq2_rpoB,NZ_CP012345.1_Mycobacterium_avium,89.40,940,98,2,5,942,118,1055,2.15e-110,1180.0
+seq3_blaKPC,NG_049253.1_Klebsiella_pneumoniae_blaKPC,100.00,882,0,0,1,882,1,882,0.0,1630.0
+seq3_blaKPC,NG_055500.1_Enterobacter_cloacae_blaKPC-3,99.66,882,3,0,1,882,1,882,0.0,1615.0
+seq4_cov2_spike,NC_045512.2_SARS-CoV-2_spike,99.80,1273,2,0,1,1273,21563,25384,0.0,2340.0
+seq4_cov2_spike,MN996532.2_Bat_coronavirus_RaTG13,96.20,1270,48,1,1,1270,21500,25320,0.0,2190.0
+seq5_low_homology,CP001234.1_Distant_homolog,45.20,210,110,5,15,220,50,255,4.50e-04,42.0

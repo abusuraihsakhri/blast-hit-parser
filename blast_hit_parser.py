@@ -150,7 +150,11 @@ class BlastTabularParser:
                     fields = [f.strip() for f in line.replace("# Fields:", "").split(",")]
                 continue
 
-            parts = [p.strip() for p in line.split(delimiter)]
+            # Support comma-separated (CSV), tab-separated (TSV), or whitespace-separated lines
+            if delimiter == "\t" and "\t" not in line and "," in line:
+                parts = [p.strip() for p in line.split(",")]
+            else:
+                parts = [p.strip() for p in line.split(delimiter)]
             if len(parts) < len(fields):
                 # Try whitespace delimiter fallback
                 parts = line.split()
@@ -158,6 +162,10 @@ class BlastTabularParser:
                 continue
 
             row = dict(zip(fields, parts))
+
+            # Skip header line if present (e.g. qseqid, sseqid, etc.)
+            if row.get("qseqid", "").lower() in ("qseqid", "query", "query_id") and row.get("pident", "").lower() in ("pident", "% identity", "identity"):
+                continue
 
             qseqid = row.get("qseqid", "unknown_query")
             sseqid = row.get("sseqid", "unknown_subject")
